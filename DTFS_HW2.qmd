@@ -1,0 +1,216 @@
+---
+title: "DTFS_HW2"
+format: html
+editor: visual
+author: "Dylan Freebairn-Smith"
+date: 4/14/2024
+---
+
+```{r results='hide', message=FALSE, warning=FALSE}
+
+library(tidyverse) #This chunk is used so that my render went through.  The code could not read " %>% " without it when rendering.
+
+library(lterdatasampler)
+
+library(effsize) # install and load package "effsize" to run function in Problem 2
+
+library(janitor)
+
+library(dplyr)
+```
+
+Problem 1a
+
+This is discrete integer data. This is because a count of a raptor can only take whole number values that have no specific order or binary.
+
+Problem 1b
+
+Standard deviation is a better measure of variability because it is calculated from the variance of the set (raptor). Standard error is a measure of uncertainty and does not tell you about the variability of the set.
+
+Equation $\sigma = \sqrt{\frac{\sum_{i=1}^n (y_i - \bar{y})^2}{n-1}}$
+
+$\sigma = 2.065591 \quad \text{raptors}$
+
+```{r Problem 1b Calc}
+#1b
+
+raptor <- c(0, 2, 4, 6, 1, 2, 3, 5, 1, 0) # make the weekly raptor sample data list an object "raptor"
+
+sd(raptor) # calculate the standard deviation of the sample
+#2.065591
+
+raptor_sd <- sd(raptor) # assign the raptor standard deviation to an object
+```
+
+Problem 1c
+
+Standard Error(SE) is the better measure of uncertainty because it can be used to express precision in a sampling distribution.
+
+Equation $SE = \frac{\sigma}{\sqrt{n}}$
+
+$SE = 0.6531973 \quad \text{raptors}$
+
+```{r Problem 1c Calc}
+#1c
+
+raptor_sd/sqrt(10) # calculate the ttandard error of the sample
+#0.6531973
+```
+
+Problem 2
+
+a.  Null Hypothesis: Mean sugar maple stem mass in 2003 does not differ between reference and calcium-treated watersheds.
+
+Alternative Hypothesis: Mean sugar maple stem mass in 2003 differs between reference and calcium-treated watersheds.
+
+b.  The variables are normally distributed as the data point are at the highest densitiy in the middle of the distribution and become less dense heading away from the middle in both directions.
+
+c.  The groups do not have equal variances because the ratio of variances is 2.6 and the 95% confidence interval does not include 1.
+
+d.  $t_{critical} = -2.09302405220831$
+
+```{r Problem 2b Code}
+#2b
+
+data("hbr_maples") #load in the hbr_maple data frame from the lterdatasampler package
+
+#b
+
+clean_hbr_maple <- hbr_maples %>% #create a new data frame with only relevant data
+  select(year, watershed, stem_dry_mass) %>% #select the relevant columns
+  filter(year == 2003) %>%  #filter out the rows that are not relevant
+  mutate(watershed = case_when(
+    watershed == "W1" ~ "Calcium-Treated",
+    watershed == "Reference" ~ "Reference") # changed all values that were "W1" in column "watershed" to "Calcium-Treated" (it also makes all other values N/A if you don't define them aswell)
+  )
+  
+ggplot(clean_hbr_maple, #use clean hbr maple data frame
+       aes(sample = stem_dry_mass,#for the sample to create the distribution used on the x-axisof the plots
+           color = watershed) #differentiate the plots using colors
+       ) + 
+  geom_qq() + #plot the sample distributions on qqplots
+  geom_qq_line() + #create a trendline from the plotted points
+  theme_linedraw() + #chose the theme of the plots (many choices)
+  facet_wrap(~watershed) + #makes each value plotted on its own graph (1d-2d)
+  labs(title = "Dry Stem Mass for Reference and Calcium Treated Watershed qqPlot", y = "Dry Stem Mass (g)") #define the title and axis titles
+```
+
+```{r Problem 2c Code}
+#2c
+
+library(dplyr) # load dplyr package
+library(stats) #load stats package
+
+
+var.test(stem_dry_mass ~ watershed,  #values columns ~(this tilda must be read as "by") columns with groups
+         data = clean_hbr_maple) #use clean df
+```
+
+```{r Problem 2d Code}
+#2d
+
+t_critical <- qt(p = 0.05/2, 
+                 19,
+                 lower.tail = TRUE) #p = alpha/2 tails(because we are looking for a "difference" not a greater or lesser value), df = n - # of groups, use lower.tail = FALSE for a one tailed test of the upper values lower.tail = TRUE is the default and tests both
+
+
+```
+
+```{r Problem 2e Code}
+t_test_result <- t.test(stem_dry_mass ~ watershed, # values column ~(by) groups column
+       data = clean_hbr_maple,
+       var.equal = FALSE) #Since the ratio of variance never was equal to 1 var.equal = FALSE
+
+print(t_test_result)
+```
+
+```{r Problem 2f Code}
+#2f 
+
+library(effsize)
+library(rstatix)
+
+variance_by_watershed <- clean_hbr_maple %>% #assign it to an object
+  group_by(watershed) %>% #group the table by watershed categories
+  summarize(variance = var(stem_dry_mass)) # create a summary df of the variance of each watershed groups stem dry mass
+
+stem_dry_mass <- clean_hbr_maple$stem_dry_mass #it was returning "object not found for the two columns so I assigned each column as its own object/vector
+watershed <- clean_hbr_maple$watershed #^^^
+
+cohen_d <- cohens_d(stem_dry_mass ~ watershed, #two vectors used to calculate effect size
+        data = clean_hbr_maple, #type of t-test used
+        var.equal = FALSE) # this specifies that the variances were not equal to each other
+print(cohen_d)
+```
+
+```{r Problem 2g}
+#2g
+
+ggplot(data = clean_hbr_maple, #select dataframe to plot
+       aes(x = watershed, # select x axis data
+           y = stem_dry_mass, #select y axis data
+           color = watershed, # select categories to differentiate colors by
+           shape = watershed # select categories to differentiate shapes by
+           )) +
+  geom_point(position = position_jitter(width = 0.1, 
+                                        seed = 1,), alpha = 0.2) +
+  stat_summary(fun.data = mean_cl_normal, # add the confidence interval as an error bar
+               geom = "errorbar") +
+  stat_summary(fun = mean, # add the mean as a point
+               geom = "point") +
+  theme_classic() + #use classic theme
+  labs(title = "Mean and CI of Dry Steam Mass of Maple Trees", 
+       subtitle = "(In Reference and Calcium -Treated Watersheds)", 
+       x = "Watershed", 
+       y = "Dry Stem Mass (g)",) + 
+  scale_color_discrete(name = "Watershed") +  # set legend title for color
+  scale_shape_discrete(name = "Watershed")+ # set the legend title for shape
+  theme(text = element_text(family = "Times New Roman"), # change the text font
+        rect = element_rect(fill = "beige")) # change the fill color around the graph
+
+```
+
+h.  Since the data was independent, normally distributed, the samples were not paired, and the variances were not equal I used a Welch 2-sample t-test to analyze if there was a difference in dry-stem mass between the two types of watershed. I used and F-test to find that the ratio of variances were not equal or close to 1 and used a QQ plot to visually check if the data was normally distributed, which it was.
+
+i.  There is a large difference ($\eta^{2} > 0.8$) between the mean Dry Stem Mass in Untreated(Reference) and Calcium-Treated watersheds in 2003. (Welch Two-Sample T-test, t(197.96) = 9.1797, p-value \< 0.001, $\alpha = 0.05$). We dried and weighed 120 stems in both water sheds. The mean weight for the Reference watershed was 0.02286 g (95% CI \[0.02168183,0.02403817\]) and the mean weight for the Calcium Treated Watershed was 0.03327333 g (95% CI \[0.03136092,0.03518575\]).
+
+Problem 3
+
+```{r results='hide', message=FALSE, warning=FALSE}
+#3e
+PDI_Cold_Plunge_Good<- read_csv("PDI_Cold_Plunge_Good_copy2.csv")
+#I just clicked on the .csv in my files and imported the data set that way because it was saying that it could not find my file with read.csv() or read_csv().
+```
+
+```{r}
+#3f
+
+clean_cold_plunge <- PDI_Cold_Plunge_Good %>% #create new clean table
+    select(`Water_Time (s)`, Num_People) %>% #select the tow columns I want in my new df
+  clean_names() %>%  #clean up the names of the columns
+  na.omit() # omit cells with N/A values
+  
+mean_time_people <- clean_cold_plunge %>% #create a new df with only the mean of each num_people value
+  group_by(num_people) %>% #group the time values by the num people values
+  summarize(mean(water_time_s)) %>% # find the mean time of each different num_people value
+  clean_names() #clean up the names in the new df
+
+ggplot(data = mean_time_people,
+       aes(x = num_people,
+           y = mean_water_time_s, #the color of the outline of the bars will be according to the num_people value
+           fill = num_people)) + #the fill of the outline of the bars will be according to the num_people value
+  geom_col() + # graph the data in columns according to the values (geom_bar would graph the bins according to the # of dif values in each category)
+  guides(fill = "none") + #do not make a legend for the "fill" aesthetic 
+  labs(title = "Mean Time Spent Cold Plunging", #change the title
+       subtitle = "According to # of people accompanying me",  #change the subtitle
+       y = "Mean Time (s)", #change the y axis title
+       x = "# of people accompanying me", #change the x axis title
+       color = "# of People") # change the name of the legend for the color
+
+```
+
+3g.
+
+My visualization is looking at the mean amount of time that I spent in the water with either 0, 1, or 2 people that came to cold plung with me. It shows that the more people that come with me the longer I stay in the water according to the 12 data points I have collected so far.
+
+3h. I have been entering my data directly into an excel spreadsheet and this made the rest of my process very easy. It was easy to save the .xlxs as a .csv into my HW2 directory. I read in the file and the only thing that was off was like 12 extra rows of N/A cells at the bottom of my columns. I used the na.omit function when cleaning my data to get rid of these.
